@@ -1,2 +1,2 @@
-# PPExtensions
+# ITAPowerPlatformExtensions
 ItAintBoring Power Platform Extensions
