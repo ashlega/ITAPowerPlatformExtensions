@@ -3,4 +3,4 @@
 
 oauth2-proxy.cfg
 
-ProxiedPortal/traefik/reverse-proxy/letsencrypt/acme.json
+traefik/reverse-proxy/letsencrypt/acme.json
