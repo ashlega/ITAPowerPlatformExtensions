@@ -1,0 +1,119 @@
+server {
+ 
+
+  listen 80 reuseport;
+  server_name  ${FRONTEND_DOMAIN};
+ 
+  large_client_header_buffers 4 32k;
+  proxy_busy_buffers_size   512k;
+  proxy_buffers   4 512k;
+  proxy_buffer_size   256k;
+ 
+
+  location /oauth2/ {
+    proxy_pass       ${OAUTH_2_PROXY};
+    proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}$request_uri;
+  }
+
+  location = /oauth2/auth {
+    proxy_pass       ${OAUTH_2_PROXY};
+   
+
+    proxy_set_header X-Forwarded-Uri ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}$request_uri;
+    proxy_set_header Content-Length   "";
+    proxy_pass_request_body           off;
+  }
+
+  #location = /test {
+  #  auth_request /oauth2/auth;
+  #  error_page 401 =403 /oauth2/sign_in;
+  #  auth_request_set $pp_user $upstream_http_x_auth_request_email;
+  #  proxy_set_header Pp-User $pp_user;
+  #  proxy_set_header Test-Header $http_accept;
+  #  proxy_pass http://echo-server:80;
+  #}
+
+
+  location ~* /account/login/logoff {
+    rewrite (.*) /oauth2/sign_out;
+  }
+
+  location = /oauth2/sign_out {
+    proxy_pass       ${OAUTH_2_PROXY};
+    proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS};
+    proxy_set_header Content-Length   "";
+    proxy_pass_request_body           off;
+  }
+
+
+  location = /oauth2/callback {
+    proxy_pass       ${OAUTH_2_PROXY};
+    proxy_redirect ~*(.*) ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}/${PROXIED_HOME_PAGE};
+    proxy_set_header Content-Length   "";
+    proxy_pass_request_body           off;
+  }
+
+  
+  location / {
+    auth_request /oauth2/auth;
+    error_page 401 =302 /oauth2/sign_in;
+
+    auth_request_set $pp_user $upstream_http_x_auth_request_email;
+    proxy_set_header Pp-User $pp_user;
+
+    proxy_pass http://localhost:89;
+  }
+}
+
+proxy_cache_path /etc/nginx/nginx_cache levels=1:2 keys_zone=auth_cache:10m max_size=128m inactive=10m use_temp_path=off;
+
+server {
+ 
+
+  listen 89 reuseport;
+ 
+  large_client_header_buffers 4 32k;
+  proxy_busy_buffers_size   512k;
+  proxy_buffers   4 512k;
+  proxy_buffer_size   256k;
+ 
+
+  location = /externalvalidation {
+    
+
+    proxy_set_header X-Forwarded-Uri ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}$request_uri;
+    proxy_set_header Content-Length   "";
+    proxy_pass_request_body           off;
+
+
+    proxy_ignore_headers "Set-Cookie";
+    proxy_hide_header "Set-Cookie";
+
+    proxy_buffering on;
+    proxy_cache auth_cache;
+    proxy_cache_key "$http_pp_user";
+    proxy_cache_valid       200 5m;
+
+    proxy_pass  ${EXTERNAL_VALIDATION_URL};
+
+  }
+
+  location / {
+    auth_request /externalvalidation;
+    error_page 401 =403 ${EXTERNAL_VALIDATION_401_URL};
+
+    proxy_pass ${PROXIED_ADDRESS};
+    proxy_redirect ${OIDC_LOCATION_TO_REPLACE} ${OIDC_LOCATION_REPLACEMENT};
+    proxy_redirect ${PROXIED_ADDRESS} ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS};
+
+proxy_redirect https://treecatsoftwareb2c.b2clogin.com/5cb9b89d-d5d2-4e31-b88b-e82a2cf12121/b2c_1_tcportal1/oauth2/v2.0/authorize?client_id=52f70d40-d5ad-4e54-b0e7-a3f776978e68&redirect_uri=https%3A%2F%2Fprotectedtreecatportal15982378.powerappsportals.com%2Fsignin-aad-b2c_1 https://treecatsoftwareb2c.b2clogin.com/5cb9b89d-d5d2-4e31-b88b-e82a2cf12121/b2c_1_tcportal1/oauth2/v2.0/authorize?client_id=52f70d40-d5ad-4e54-b0e7-a3f776978e68&redirect_uri=https%3A%2F%2Fportal.treecatsoftware.com:8443%2Fsignin-aad-b2c_1;
+sub_filter https://protectedtreecatportal15982378.powerappsportals.com/signin-aad-b2c_1 https://portal.treecatsoftware.com:8443/signin-aad-b2c_1;
+
+    sub_filter  ${PROXIED_DOMAIN} ${FRONTEND_DOMAIN};
+    proxy_cookie_domain ${PROXIED_DOMAIN} ${FRONTEND_DOMAIN};
+
+  }
+}
+
+
+

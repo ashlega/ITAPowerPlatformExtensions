@@ -1,0 +1,112 @@
+version: '3.0'
+
+  
+
+services:
+
+  #echo-server:
+  #  image: ealen/echo-server:0.9.2
+  #  ports:
+  #    - 3000:80
+  
+  oauth2-proxy:
+    container_name: oauth2-proxy
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    command: --config /oauth2-proxy.cfg
+    hostname: oauth2-proxy 
+    volumes:
+      - ./oauth2-proxy.cfg:/oauth2-proxy.cfg
+    restart: unless-stopped
+    ports:
+      - "4180:4180"
+    dns:
+      - 8.8.8.8
+
+
+  nginx:
+    container_name: nginx-proxy
+    image: nginx:1.27
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "89:89"
+    hostname: nginx-proxy
+    environment:
+      - OAUTH_2_PROXY=${OAUTH_2_PROXY}
+      - FRONTEND_SCHEMA=${FRONTEND_SCHEMA}
+      - FRONTEND_ADDRESS=${FRONTEND_DOMAIN}:${FRONTEND_PORT}
+      - PROXIED_ADDRESS=${PROXIED_ADDRESS}
+      - FRONTEND_DOMAIN=${FRONTEND_DOMAIN}
+      - PROXIED_DOMAIN=${PROXIED_DOMAIN}
+      - PROXIED_HOME_PAGE=${PROXIED_HOME_PAGE}
+      - OIDC_LOCATION_TO_REPLACE=${OIDC_LOCATION_TO_REPLACE}
+      - OIDC_LOCATION_REPLACEMENT=${OIDC_LOCATION_REPLACEMENT}
+      - EXTERNAL_VALIDATION_URL=${EXTERNAL_VALIDATION_URL}
+      - EXTERNAL_VALIDATION_401_URL=${EXTERNAL_VALIDATION_401_URL}
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./generated/nginx_cache:/etc/nginx/nginx_cache
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx-proxy.entrypoints=https"
+      - "traefik.http.routers.nginx-proxy.rule=Host(`${FRONTEND_DOMAIN}`)"
+      - "traefik.http.routers.nginx-proxy.tls=true"
+      - "traefik.http.routers.nginx-proxy.tls.certresolver=letsEncrypt"
+    dns:
+      - 8.8.8.8
+
+  traefik:
+    image: traefik:2.4
+    container_name: traefik
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - "--log.level=ERROR"
+      - "--log.filePath=/logs/traefik.log"
+      - "--api=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/logs/access.log"
+      - "--entryPoints.http.address=:80"
+      - "--entryPoints.https.address=:443"
+      - "--entryPoints.dashboard.address=:8080"
+      - "--certificatesresolvers.letsEncrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.letsEncrypt.acme.httpChallenge=true"
+      - "--certificatesresolvers.letsEncrypt.acme.httpChallenge.entryPoint=http"
+      - "--certificatesresolvers.letsEncrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsEncrypt.acme.storage=/letsencrypt/acme.json"
+
+    ports:
+      - 8880:80
+      - ${FRONTEND_PORT}:443
+    expose:
+      # traefik dashboard port
+      - 8080
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/reverse-proxy/letsencrypt:/letsencrypt
+      - ./generated/traefik/reverse-proxy/logs:/logs
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxynew"
+      - "traefik.http.routers.traefik.entrypoints=https"
+
+      # Dashboard
+      - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
+      - "traefik.http.routers.dashboard.entrypoints=https"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsEncrypt"
+
+      # global redirect HTTPS
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{any:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=http"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https@docker"
+
+      # middleware: Redirect HTTP->HTTPS
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      
