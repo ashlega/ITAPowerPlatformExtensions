@@ -1,6 +1,5 @@
 server {
  
-
   listen 80 reuseport;
   server_name  ${FRONTEND_DOMAIN};
  
@@ -8,22 +7,26 @@ server {
   proxy_busy_buffers_size   512k;
   proxy_buffers   4 512k;
   proxy_buffer_size   256k;
+
+  proxy_buffering on;
  
 
   location /oauth2/ {
     proxy_pass       ${OAUTH_2_PROXY};
-    proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}$request_uri;
+    proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}${NATIVE_SIGNIN_PAGE}$request_uri;
   }
 
   location = /oauth2/auth {
     proxy_pass       ${OAUTH_2_PROXY};
-   
+    #proxy_set_header X-Forwarded-Uri ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}${NATIVE_SIGNIN_PAGE}$request_uri;
+    #proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}${NATIVE_SIGNIN_PAGE}$request_uri;
 
-    proxy_set_header X-Forwarded-Uri ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}$request_uri;
     proxy_set_header Content-Length   "";
     proxy_pass_request_body           off;
   }
 
+  #echo server location to test headers, cookies, etc
+  #would need to re-enable that container in the docker-compose first 
   #location = /test {
   #  auth_request /oauth2/auth;
   #  error_page 401 =403 /oauth2/sign_in;
@@ -35,20 +38,55 @@ server {
 
 
   location ~* /account/login/logoff {
-    rewrite (.*) /oauth2/sign_out;
+    rewrite (.*) /sign_out;
   }
 
-  location = /oauth2/sign_out {
-    proxy_pass       ${OAUTH_2_PROXY};
+  location = /sign_out {
+    return 302 ${SIGNOUT_URL};
+  }
+
+  location /oauth2/sign_out_external_failed  {
+    #clear portal application cookie
+    add_header Set-Cookie ".AspNet.ApplicationCookie=;path=/;Max-Age=0;Expires=Wed, 26 Aug 2020 14:17:01 GMT";
+
+    #clear oauth2proxy cookie
+    add_header Set-Cookie "${OAUTH2PROXY_COOKIE_NAME}=;path=/;Max-Age=0;Expires=Wed, 26 Aug 2020 14:17:01 GMT";
+        
+
     proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS};
     proxy_set_header Content-Length   "";
     proxy_pass_request_body           off;
+
+    return 302 ${EXTERNAL_VALIDATION_401_URL}?$query_string;
+  }
+
+  location = /oauth2/sign_out {
+
+    #clear portal application cookie
+    add_header Set-Cookie ".AspNet.ApplicationCookie=;path=/;Max-Age=0;Expires=Wed, 26 Aug 2020 14:17:01 GMT";
+
+    #clear oauth2proxy cookie
+    add_header Set-Cookie "${OAUTH2PROXY_COOKIE_NAME}=;path=/;Max-Age=0;Expires=Wed, 26 Aug 2020 14:17:01 GMT";
+        
+
+    proxy_set_header X-Auth-Request-Redirect ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS};
+    proxy_set_header Content-Length   "";
+    proxy_pass_request_body           off;
+
+
+    #root /home/nginx/static;
+    #try_files /signout.html =404;
+
+    #proxy_pass       ${OAUTH_2_PROXY};
+
+    return 302 ${SIGNOUT_REDIRECT};
   }
 
 
   location = /oauth2/callback {
     proxy_pass       ${OAUTH_2_PROXY};
-    proxy_redirect ~*(.*) ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}/${PROXIED_HOME_PAGE};
+    
+    #proxy_redirect ~*(.*) ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}/${PROXIED_HOME_PAGE};
     proxy_set_header Content-Length   "";
     proxy_pass_request_body           off;
   }
@@ -56,9 +94,9 @@ server {
   
   location / {
     auth_request /oauth2/auth;
-    error_page 401 =302 /oauth2/sign_in;
+    error_page 401 =302 /oauth2/start;
 
-    auth_request_set $pp_user $upstream_http_x_auth_request_email;
+    auth_request_set $pp_user $upstream_http_x_auth_request_user;
     proxy_set_header Pp-User $pp_user;
 
     proxy_pass http://localhost:89;
@@ -76,6 +114,8 @@ server {
   proxy_busy_buffers_size   512k;
   proxy_buffers   4 512k;
   proxy_buffer_size   256k;
+
+  proxy_buffering on;
  
 
   location = /externalvalidation {
@@ -89,28 +129,34 @@ server {
     proxy_ignore_headers "Set-Cookie";
     proxy_hide_header "Set-Cookie";
 
-    proxy_buffering on;
+    
     proxy_cache auth_cache;
     proxy_cache_key "$http_pp_user";
-    proxy_cache_valid       200 5m;
+    proxy_cache_valid       200 1m;
 
     proxy_pass  ${EXTERNAL_VALIDATION_URL};
 
   }
 
+  
   location / {
     auth_request /externalvalidation;
-    error_page 401 =403 ${EXTERNAL_VALIDATION_401_URL};
+    
+    #if external validation fails, sign out from Azure B2C, then return to clean up oauth2proxy cookie - see sign_out_external_failed location somewhere above
+    error_page 401 =403 ${SIGNOUT_URL_EXTERNAl_FAILED}${FRONTEND_SCHEMA}${FRONTEND_ADDRESS}/oauth2/sign_out_external_failed%3Fuid%3D$http_pp_user;
 
     proxy_pass ${PROXIED_ADDRESS};
-    proxy_redirect ${OIDC_LOCATION_TO_REPLACE} ${OIDC_LOCATION_REPLACEMENT};
+    
     proxy_redirect ${PROXIED_ADDRESS} ${FRONTEND_SCHEMA}${FRONTEND_ADDRESS};
 
-proxy_redirect https://treecatsoftwareb2c.b2clogin.com/5cb9b89d-d5d2-4e31-b88b-e82a2cf12121/b2c_1_tcportal1/oauth2/v2.0/authorize?client_id=52f70d40-d5ad-4e54-b0e7-a3f776978e68&redirect_uri=https%3A%2F%2Fprotectedtreecatportal15982378.powerappsportals.com%2Fsignin-aad-b2c_1 https://treecatsoftwareb2c.b2clogin.com/5cb9b89d-d5d2-4e31-b88b-e82a2cf12121/b2c_1_tcportal1/oauth2/v2.0/authorize?client_id=52f70d40-d5ad-4e54-b0e7-a3f776978e68&redirect_uri=https%3A%2F%2Fportal.treecatsoftware.com:8443%2Fsignin-aad-b2c_1;
-sub_filter https://protectedtreecatportal15982378.powerappsportals.com/signin-aad-b2c_1 https://portal.treecatsoftware.com:8443/signin-aad-b2c_1;
+    proxy_redirect  ${AZURE_B2C_LOC1} ${AZURE_B2C_LOC1_REPLACEMENT};
+    sub_filter ${PORTAL_AZUREB2C_CALLBACK} ${PORTAL_AZUREB2C_CALLBACK_REPLACEMENT};
 
     sub_filter  ${PROXIED_DOMAIN} ${FRONTEND_DOMAIN};
     proxy_cookie_domain ${PROXIED_DOMAIN} ${FRONTEND_DOMAIN};
+
+    #Google provider - not Azure B2C
+    #proxy_redirect ${OIDC_LOCATION_TO_REPLACE} ${OIDC_LOCATION_REPLACEMENT};
 
   }
 }

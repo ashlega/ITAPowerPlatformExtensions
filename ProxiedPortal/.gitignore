@@ -3,4 +3,6 @@
 
 oauth2-proxy.cfg
 
+*.itaintboring
+
 traefik/reverse-proxy/letsencrypt/*

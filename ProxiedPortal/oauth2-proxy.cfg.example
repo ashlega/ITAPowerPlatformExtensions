@@ -47,6 +47,7 @@ client_id="YOUR APP ID"
 provider_display_name="Azure B2C"
 
 #You'll need to add a scope to your app in Azure B2C, otherwise can't use authorization code flow, which is what Oauth2Proxy will be using though
+
 scope="https://TreeCatSoftwareB2C.onmicrosoft.com/52f70d40-d5ad-4e54-b0e7-a3f776978e68/read openid"
 
 #Oauth2Proxy can't use multiple emails the way Azure B2C does, so needs another claim to identify the user
