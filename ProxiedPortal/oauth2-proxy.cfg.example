@@ -1,7 +1,8 @@
 
 
 #Change the cookie name
-cookie_name="_YOURDOMAIN_oauth2_proxy"
+#It needs to match OAUTH2PROXY_COOKIE_NAME in the .env file
+cookie_name="_itaintboring_oauth2_proxy"
 
 provider="oidc"
 
@@ -18,16 +19,14 @@ email_domains="*"
 cookie_secure="false"
 
 
-#Update the url below (domain:port portion)
-redirect_url="https://YOUR_FRONT_END_DOMAIN.COM:YOURPORT_IF_NEEDED/oauth2/callback"
+#Update the url below to match your "external" domain/port, keep oauth2/callback portion as is
+redirect_url="https://portal.itaintboring.com/oauth2/callback"
 
 #Whitelist your domain here, keep oauth2-proxy
-whitelist_domains=[".YOUR_FRONT_END_DOMAIN.com:*",".oauth2-proxy:*"] # Required to allow redirection back to original requested target.
+whitelist_domains=[".itaintboring.com:*",".oauth2-proxy:*"] # Required to allow redirection back to original requested target.
 
 #To generate a cookie secret, see this: https://oauth2-proxy.github.io/oauth2-proxy/configuration/overview/
-cookie_secret="GENERATED_SECRET"
-
-#AZURE B2C - make sure it works with your portal without reverse proxy first, then update all configuration parameters below
+cookie_secret="M..........SU8="
 
 code_challenge_method="plain"
 skip_oidc_discovery="true"
@@ -36,14 +35,15 @@ skip_oidc_discovery="true"
 #See this: https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc
 #Below are examples only
 
-oidc_issuer_url="https://treecatsoftwareb2c.b2clogin.com/tfp/5cb9ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ2cf12121/b2c_1_tcportal1/v2.0/"
+oidc_issuer_url="https://treecatsoftwareb2c.b2clogin.com/tfp/5cb9b89d-d5d2-4e31-b88b-e82a2cf12121/b2c_1_tcportal1/v2.0/"
 login_url="https://TreeCatSoftwareB2C.b2clogin.com/TreeCatSoftwareB2C.onmicrosoft.com/b2c_1_tcportal1/oauth2/v2.0/authorize"
 redeem_url="https://TreeCatSoftwareB2C.b2clogin.com/TreeCatSoftwareB2C.onmicrosoft.com/b2c_1_tcportal1/oauth2/v2.0/token"
 oidc_jwks_url="https://TreeCatSoftwareB2C.b2clogin.com/TreeCatSoftwareB2C.onmicrosoft.com/b2c_1_tcportal1/discovery/v2.0/keys"
 
-#AZURE B2C APPLICATION DETAILS
-client_secret="YOUR APP CLIENT SECRET"
-client_id="YOUR APP ID"
+#AZURE B2C APPLICATION ID and SECRET
+client_id="52f70d40-d5ad-4e54-b0e7-a3f776978e68"
+client_secret="............"
+
 provider_display_name="Azure B2C"
 
 #You'll need to add a scope to your app in Azure B2C, otherwise can't use authorization code flow, which is what Oauth2Proxy will be using though
@@ -51,6 +51,7 @@ provider_display_name="Azure B2C"
 scope="https://TreeCatSoftwareB2C.onmicrosoft.com/52f70d40-d5ad-4e54-b0e7-a3f776978e68/read openid"
 
 #Oauth2Proxy can't use multiple emails the way Azure B2C does, so needs another claim to identify the user
+#keep it as is
 oidc_email_claim="oid"
 
 #GOOGLE - example only, might require more testing

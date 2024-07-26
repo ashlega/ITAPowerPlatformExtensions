@@ -22,10 +22,9 @@ services:
     dns:
       - 8.8.8.8
 
-
   nginx:
     container_name: nginx-proxy
-    image: nginx:1.27
+    image: nginx:latest
     restart: unless-stopped
     ports:
       - "80:80"
@@ -34,13 +33,11 @@ services:
     environment:
       - OAUTH_2_PROXY=${OAUTH_2_PROXY}
       - FRONTEND_SCHEMA=${FRONTEND_SCHEMA}
-      - FRONTEND_ADDRESS=${FRONTEND_DOMAIN}:${FRONTEND_PORT}
+      - FRONTEND_ADDRESS=${FRONTEND_DOMAIN}${FRONTEND_PORT}
       - PROXIED_ADDRESS=${PROXIED_ADDRESS}
       - FRONTEND_DOMAIN=${FRONTEND_DOMAIN}
       - PROXIED_DOMAIN=${PROXIED_DOMAIN}
       - PROXIED_HOME_PAGE=${PROXIED_HOME_PAGE}
-      - OIDC_LOCATION_TO_REPLACE=${OIDC_LOCATION_TO_REPLACE}
-      - OIDC_LOCATION_REPLACEMENT=${OIDC_LOCATION_REPLACEMENT}
       - EXTERNAL_VALIDATION_URL=${EXTERNAL_VALIDATION_URL}
       - EXTERNAL_VALIDATION_401_URL=${EXTERNAL_VALIDATION_401_URL}
       - AZURE_B2C_LOC1=${AZURE_B2C_LOC1}
@@ -64,6 +61,7 @@ services:
       - "traefik.http.routers.nginx-proxy.tls.certresolver=letsEncrypt"
     dns:
       - 8.8.8.8
+
 
   traefik:
     image: traefik:2.4
@@ -90,7 +88,7 @@ services:
 
     ports:
       - 8880:80
-      - ${FRONTEND_PORT}:443
+      - 8443:443
     expose:
       # traefik dashboard port
       - 8080
